@@ -41,7 +41,6 @@ clip_TROPOSIF <- function (input_file, roi_file, out_dir, tmpdir){
   roi <- vect(roi_file)
   
   time_s <- Sys.time()
-  print(paste0("Working on: ", input_file))
 
   t_data <- nc_open(input_file)
   
@@ -69,12 +68,13 @@ clip_TROPOSIF <- function (input_file, roi_file, out_dir, tmpdir){
   # If number of soundings > 0, then proceed
   if (nrow(crds(ndvi_roi, df = TRUE)) == 0) {
     print(paste0("File for this date is being skipped as it has 0 soundings for the region: ", t))
-    print("")
+    # Close input file
+    nc_close(t_data)
+    tmp_remove(tmpdir)
+    
   } else {
     df <- crds(ndvi_roi, df = TRUE)
     df <- cbind(df, ndvi_roi[[1]])
-    
-    print(paste0("Number of soundings for this file is: ", length(df$NDVI)))
 
     v          <- vect(cbind(lon, lat), atts = nirv, crs = "+proj=longlat +datum=WGS84")
     nirv_roi   <- intersect(v, roi)
@@ -185,10 +185,9 @@ clip_TROPOSIF <- function (input_file, roi_file, out_dir, tmpdir){
     time_e <- Sys.time()
     time_dif <- difftime(time_e, time_s)
     print(paste0("Saved ", out_f, ". Time elapsed: ", time_dif))
-    print("")
   }
   
   tmp_remove(tmpdir)
 }
 
-mclapply(f_list, clip_TROPOSIF, mc.cores = 4, mc.preschedule = FALSE, roi_file = roi_file, out_dir = out_dir, tmpdir = tmpdir)
+mclapply(f_list, clip_TROPOSIF, mc.cores = 5, mc.preschedule = FALSE, roi_file = roi_file, out_dir = out_dir, tmpdir = tmpdir)
