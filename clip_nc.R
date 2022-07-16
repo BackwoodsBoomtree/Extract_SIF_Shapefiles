@@ -7,13 +7,22 @@ library(parallel)
 terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
 
 tmpdir         <- "/mnt/c/Rwork"
-roi_file       <- vect("POLYGON ((-180 -23.5, 180 -23.5, 180 23.5, -180 23.5, -180 -23.5))", crs="+proj=longlat +datum=WGS84")
-out_dir        <- "/mnt/g/TROPOMI/esa/extracted/ebf/tropics"
-out_name       <- "/EBF_Tropics_TROPOSIF_L2B_"
+out_dir        <- "/mnt/g/TROPOMI/esa/extracted/ebf/seasia"
+out_name       <- "/EBF_SEAsia_TROPOSIF_L2B_"
 f_list         <- list.files("/mnt/g/TROPOMI/esa/original/v2.1/l2b", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
 land_cover     <- 2    # Set to NULL if not filtering land cover class
 cloud_fraction <- 0.20 # Set to NULL if not filtering cloud fraction
-notes          <- "This data has been filtered to include only EBF soundings between -30 and 30 latitude with cloud fraction < 0.20"
+notes          <- "This data has been filtered to include only EBF soundings in SE Asia and South Pacific with cloud fraction < 0.20"
+
+### Polygons for clipping
+# roi_file       <- vect("POLYGON ((-18 -11, 52 -11, 52 14, -18 14, -18 -11))", crs="+proj=longlat +datum=WGS84") # Africa
+# roi_file       <- "/mnt/f/BACKUPS/Russell/Projects/Amazon/Amazon_poly.shp"
+# roi_file       <- vect("POLYGON ((-180 -23.5, 180 -23.5, 180 23.5, -180 23.5, -180 -23.5))", crs="+proj=longlat +datum=WGS84") # Tropics
+
+# Asia: Many soundings appear to be in the sea, so we need to also clip by coastlines
+roi_seasia <- vect("POLYGON ((72 -23.5, 180 -23.5, 180 23.5, 72 23.5, 72 -23.5))", crs="+proj=longlat +datum=WGS84") # Asia & Pacific
+coastlines <- vect("/mnt/c/Russell/R_Scripts/TROPOMI_2/mapping/GSHHS_shp/c/GSHHS_c_L1.shp")
+roi_file   <- intersect(roi_seasia, coastlines)
 
 tmp_create <- function(tmpdir) {
   
@@ -44,8 +53,9 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover, c
   # if needed, vectorize roi shp file for clipping
   if (typeof(roi_file) != "S4"){
     roi <- vect(roi_file)
+    roi <- aggregate(roi)
   } else {
-    roi <- roi_file
+    roi <- aggregate(roi_file)
   }
 
   t_data <- nc_open(input_file)
@@ -226,5 +236,5 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover, c
   tmp_remove(tmpdir)
 }
 
-mclapply(f_list, clip_TROPOSIF, mc.cores = 6, mc.preschedule = FALSE, roi_file = roi_file,
+mclapply(f_list, clip_TROPOSIF, mc.cores = 10, mc.preschedule = FALSE, roi_file = roi_file,
          out_dir = out_dir, out_name = out_name, land_cover = land_cover, cloud_fraction = cloud_fraction,  tmpdir = tmpdir)
