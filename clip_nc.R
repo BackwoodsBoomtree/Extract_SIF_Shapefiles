@@ -6,13 +6,15 @@ library(parallel)
 
 terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
 
-tmpdir         <- "/mnt/c/Rwork"
-out_dir        <- "/mnt/g/TROPOMI/esa/extracted/ebf/seasia"
-out_name       <- "/EBF_SEAsia_TROPOSIF_L2B_"
-f_list         <- list.files("/mnt/g/TROPOMI/esa/original/v2.1/l2b", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
-land_cover     <- 2    # Set to NULL if not filtering land cover class
-cloud_fraction <- 0.20 # Set to NULL if not filtering cloud fraction
-notes          <- "This data has been filtered to include only EBF soundings in SE Asia and South Pacific with cloud fraction < 0.20"
+tmpdir          <- "/mnt/c/Rwork"
+out_dir         <- "/mnt/g/TROPOMI/esa/extracted/ebf/seasia"
+out_name        <- "/EBF_SEAsia_TROPOSIF_L2B_"
+f_list          <- list.files("/mnt/g/TROPOMI/esa/original/v2.1/l2b", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
+land_cover      <- 2    # Set to NULL if not filtering land cover class
+land_cover_var  <- "PRODUCT/LC_MASK_2020" # Can be default or one we added
+land_cover_perc <- "PRODUCT/LC_PERC_2020"
+cloud_fraction  <- 0.20 # Set to NULL if not filtering cloud fraction
+notes           <- "This data has been filtered to include only EBF soundings in SE Asia and South Pacific with cloud fraction < 0.20"
 
 ### Polygons for clipping
 # roi_file       <- vect("POLYGON ((-18 -11, 52 -11, 52 14, -18 14, -18 -11))", crs="+proj=longlat +datum=WGS84") # Africa
@@ -40,7 +42,8 @@ tmp_remove <- function(tmpdir) {
   unlink(p_tmp_dir, recursive = TRUE)
 }
 
-clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover, cloud_fraction, tmpdir) {
+clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
+                          land_cover_var, land_cover_perc, cloud_fraction, tmpdir) {
   
   tmp_create(tmpdir)
   
@@ -82,8 +85,11 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover, c
   df_var$SIF_Rel          <- ncvar_get(t_data, "PRODUCT/SIF_Rel")
   df_var$phase_angle      <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/GEOLOCATIONS/phase_angle")
   df_var$cloud_fraction   <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/INPUT_DATA/cloud_fraction_L2")
-  df_var$LC_MASK          <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/INPUT_DATA/LC_MASK")
-  nc_close(t_data)
+  df_var$LC_MASK          <- ncvar_get(t_data, land_cover_var)
+  if (!is.null(land_cover_perc)) {
+    df_var$LC_PERC <- ncvar_get(t_data, land_cover_perc)
+  }
+    nc_close(t_data)
   
   if (!is.null(land_cover)) {
     df_var <- df_var[df_var$LC_MASK == land_cover, ]
@@ -181,16 +187,31 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover, c
     dlname        <- "cloud fraction"
     cf_def        <- ncvar_def("cloud_fraction_L2", "fraction", elemdim, fillvalue, dlname, prec = "float")
     
-    dlname        <- "LC_MASK"
-    lc_def        <- ncvar_def("LC_MASK", "([ENF=1, EBF=2, DNF=3, DBF=4, MF=5, CS=6, OS=7, WS=8, S=9, G=10, PW=11, C=12, U=13, CNV=14, SI=15, B=16])",
+    dlname        <- land_cover_var
+    lc_def        <- ncvar_def(basename(land_cover_var), "Majority IGBP Land Cover Class",
                                elemdim, fillvalue, dlname, prec = "float")
+    
+    if (!is.null(land_cover_perc)) {
+      dlname        <- land_cover_perc
+      lc_perc_def   <- ncvar_def(basename(land_cover_perc), "% of Majority IGBP Land Cover Class",
+                                 elemdim, fillvalue, dlname, prec = "float")
+    }
+    
     
     # create netCDF file and put arrays
     out_f <- paste0(out_dir, out_name, t, ".nc")
-    ncout <- nc_create(out_f,
-                       list(time_def, lon_def, lat_def, red_def, nir_def, ndvi_def, nirv_def, nirv_r_def, sif_def,
-                            sif_d_def, sif_e_def, rad_def, sif_nirvr_def, sif_rel_def, pa_def, cf_def, lc_def), 
-                       force_v4 = TRUE)
+    
+    if (!is.null(land_cover_perc)) {
+      ncout <- nc_create(out_f,
+                         list(time_def, lon_def, lat_def, red_def, nir_def, ndvi_def, nirv_def, nirv_r_def, sif_def,
+                              sif_d_def, sif_e_def, rad_def, sif_nirvr_def, sif_rel_def, pa_def, cf_def, lc_def, lc_perc_def), 
+                         force_v4 = TRUE)
+    } else {
+      ncout <- nc_create(out_f,
+                         list(time_def, lon_def, lat_def, red_def, nir_def, ndvi_def, nirv_def, nirv_r_def, sif_def,
+                              sif_d_def, sif_e_def, rad_def, sif_nirvr_def, sif_rel_def, pa_def, cf_def, lc_def), 
+                         force_v4 = TRUE)
+    }
     
     # put variables
     ncvar_put(ncout, time_def, rep(t_num, times = nrow(df)))
@@ -210,6 +231,9 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover, c
     ncvar_put(ncout, pa_def, df$phase_angle)
     ncvar_put(ncout, cf_def, df$cloud_fraction)
     ncvar_put(ncout, lc_def, df$LC_MASK)
+    if (!is.null(land_cover_perc)) {
+      ncvar_put(ncout, lc_perc_def, df$LC_PERC)
+    }
     
     # put additional attributes into dimension and data variables
     ncatt_put(ncout,"lon","axis","X")
@@ -237,4 +261,5 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover, c
 }
 
 mclapply(f_list, clip_TROPOSIF, mc.cores = 10, mc.preschedule = FALSE, roi_file = roi_file,
-         out_dir = out_dir, out_name = out_name, land_cover = land_cover, cloud_fraction = cloud_fraction,  tmpdir = tmpdir)
+         out_dir = out_dir, out_name = out_name, land_cover = land_cover, land_cover_var = land_cover_var,
+         land_cover_perc = land_cover_perc, cloud_fraction = cloud_fraction,  tmpdir = tmpdir)
