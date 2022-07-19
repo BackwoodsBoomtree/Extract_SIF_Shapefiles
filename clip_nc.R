@@ -7,24 +7,24 @@ library(parallel)
 terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
 
 tmpdir          <- "/mnt/c/Rwork"
-out_dir         <- "/mnt/g/TROPOMI/esa/extracted/ebf/seasia"
-out_name        <- "/EBF_SEAsia_TROPOSIF_L2B_"
+out_dir         <- "/mnt/g/TROPOMI/esa/extracted/ebf/africa"
+out_name        <- "/EBF_Tropics_TROPOSIF_L2B_"
 f_list          <- list.files("/mnt/g/TROPOMI/esa/original/v2.1/l2b", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
 land_cover      <- 2    # Set to NULL if not filtering land cover class
 land_cover_var  <- "PRODUCT/LC_MASK_2020" # Can be default or one we added
 land_cover_perc <- "PRODUCT/LC_PERC_2020"
 cloud_fraction  <- 0.20 # Set to NULL if not filtering cloud fraction
-notes           <- "This data has been filtered to include only EBF soundings in SE Asia and South Pacific with cloud fraction < 0.20"
+notes           <- "This data has been filtered to include only EBF soundings in Africa with cloud fraction < 0.20"
 
 ### Polygons for clipping
-# roi_file       <- vect("POLYGON ((-18 -11, 52 -11, 52 14, -18 14, -18 -11))", crs="+proj=longlat +datum=WGS84") # Africa
-# roi_file       <- "/mnt/f/BACKUPS/Russell/Projects/Amazon/Amazon_poly.shp"
+roi_file       <- vect("POLYGON ((-18 -11, 52 -11, 52 14, -18 14, -18 -11))", crs="+proj=longlat +datum=WGS84") # Africa
+# roi_file       <- "/mnt/f/BACKUPS/Russell/Projects/Amazon/Amazon_poly.shp" # Amazon
 # roi_file       <- vect("POLYGON ((-180 -23.5, 180 -23.5, 180 23.5, -180 23.5, -180 -23.5))", crs="+proj=longlat +datum=WGS84") # Tropics
 
 # Asia: Many soundings appear to be in the sea, so we need to also clip by coastlines
-roi_seasia <- vect("POLYGON ((72 -23.5, 180 -23.5, 180 23.5, 72 23.5, 72 -23.5))", crs="+proj=longlat +datum=WGS84") # Asia & Pacific
-coastlines <- vect("/mnt/c/Russell/R_Scripts/TROPOMI_2/mapping/GSHHS_shp/c/GSHHS_c_L1.shp")
-roi_file   <- intersect(roi_seasia, coastlines)
+# roi_seasia <- vect("POLYGON ((72 -23.5, 180 -23.5, 180 23.5, 72 23.5, 72 -23.5))", crs="+proj=longlat +datum=WGS84") # Asia & Pacific
+# coastlines <- vect("/mnt/c/Russell/R_Scripts/TROPOMI_2/mapping/GSHHS_shp/c/GSHHS_c_L1.shp")
+# roi_file   <- intersect(roi_seasia, coastlines)
 
 tmp_create <- function(tmpdir) {
   
@@ -187,12 +187,12 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
     dlname        <- "cloud fraction"
     cf_def        <- ncvar_def("cloud_fraction_L2", "fraction", elemdim, fillvalue, dlname, prec = "float")
     
-    dlname        <- land_cover_var
+    dlname        <- basename(land_cover_var)
     lc_def        <- ncvar_def(basename(land_cover_var), "Majority IGBP Land Cover Class",
                                elemdim, fillvalue, dlname, prec = "float")
     
     if (!is.null(land_cover_perc)) {
-      dlname        <- land_cover_perc
+      dlname        <- basename(land_cover_perc)
       lc_perc_def   <- ncvar_def(basename(land_cover_perc), "% of Majority IGBP Land Cover Class",
                                  elemdim, fillvalue, dlname, prec = "float")
     }
