@@ -3,9 +3,9 @@ library(ncdf4)
 file_df <- function(input_dir, year, time) {
   file_list <- list.files(input_dir, pattern = "*.nc", full.names = TRUE, recursive = TRUE)
   
-  dates <- seq(as.Date(paste0(year,"-01-01")), as.Date(paste0((year + 1),"-12-31")), by="days")
-  
   if (time == "8-day") {
+    dates <- seq(as.Date(paste0(year,"-01-01")), as.Date(paste0((year),"-12-31")), by="days")
+    
     # Create data frame with column for each 8-day file list
     for (i in 1:46) {
       
@@ -32,7 +32,9 @@ file_df <- function(input_dir, year, time) {
   }
   
   if (time == "16-day") {
-    # Create data frame with column for each 8-day file list
+    dates <- seq(as.Date(paste0(year,"-01-01")), as.Date(paste0((year + 1),"-12-31")), by="days")
+    
+    # Create data frame with column for each 16-day file list
     for (i in 1:23) {
       
       sub_dates <- dates[(i * 16 - 15):(i * 16)]
@@ -49,6 +51,45 @@ file_df <- function(input_dir, year, time) {
           sub_files <- c(sub_files, NA)
         }
       }
+      if (i == 1) {
+        df <- cbind(sub_files)
+      } else {
+        df <- cbind(df, sub_files)
+      }
+    }
+  }
+  
+  if (time == "month") {
+    dates <- seq(as.Date(paste0(year,"-01-01")), as.Date(paste0(year,"-12-31")), by="days")
+    
+    df <- data.frame(matrix(ncol = 12, nrow = 31))
+    # Create data frame with column for each month
+    for (i in 1:12){
+      if (i < 10) {
+        m <- paste0("0", i)
+      } else {
+        m <- as.character(i)
+      }
+      
+      sub_dates <- subset(dates, format.Date(dates, "%m") == m)
+      sub_files <- c()
+      
+      for (j in 1:length(sub_dates)) {
+        
+        check_file <- file_list[grepl(sub_dates[j], file_list)]
+        
+        if (length(check_file) != 0) {
+          sub_files <- c(sub_files, check_file)
+        } else {
+          sub_files <- c(sub_files, NA)
+        }
+      }
+      
+      # Force length to 31
+      if (length(sub_files) < 31) {
+        sub_files <- sub_files[1:31]
+      }
+      
       if (i == 1) {
         df <- cbind(sub_files)
       } else {
