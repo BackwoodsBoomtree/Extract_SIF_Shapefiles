@@ -13,7 +13,7 @@ f_list          <- list.files("/mnt/g/TROPOMI/esa/original/v2.1/l2b", pattern = 
 land_cover      <- 2    # Set to NULL if not filtering land cover class
 land_cover_var  <- "PRODUCT/LC_MASK_2020" # Can be default or one we added
 land_cover_perc <- "PRODUCT/LC_PERC_2020"
-cloud_fraction  <- 0.80 # Set to NULL if not filtering cloud fraction
+cloud_fraction  <- NULL # Set to NULL if not filtering cloud fraction
 notes           <- "This data has been filtered to include only EBF soundings in K67 EC Tower polygon with cloud fraction < 0.80"
 
 ### Polygons for clipping
