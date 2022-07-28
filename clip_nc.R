@@ -7,20 +7,21 @@ library(parallel)
 terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
 
 tmpdir          <- "/mnt/c/Rwork"
-out_dir         <- "/mnt/g/TROPOMI/esa/extracted/ebf/k67"
-out_name        <- "/k67_TROPOSIF_L2B_"
+out_dir         <- "/mnt/g/TROPOMI/esa/extracted/ebf/rja"
+out_name        <- "/RJA_TROPOSIF_L2B_"
 f_list          <- list.files("/mnt/g/TROPOMI/esa/original/v2.1/l2b", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
 land_cover      <- 2    # Set to NULL if not filtering land cover class
 land_cover_var  <- "PRODUCT/LC_MASK_2020" # Can be default or one we added
 land_cover_perc <- "PRODUCT/LC_PERC_2020"
 cloud_fraction  <- NULL # Set to NULL if not filtering cloud fraction
-notes           <- "This data has been filtered to include only EBF soundings in K67 EC Tower polygon with cloud fraction < 0.80"
+notes           <- "This data has been filtered to include only EBF soundings in RJA EC Tower polygon with cloud fraction < 0.80"
 
 ### Polygons for clipping
 # roi_file       <- vect("POLYGON ((-18 -11, 52 -11, 52 14, -18 14, -18 -11))", crs="+proj=longlat +datum=WGS84") # Africa
 # roi_file       <- "/mnt/f/BACKUPS/Russell/Projects/Amazon/Amazon_poly.shp" # Amazon
 # roi_file       <- vect("POLYGON ((-180 -23.5, 180 -23.5, 180 23.5, -180 23.5, -180 -23.5))", crs="+proj=longlat +datum=WGS84") # Tropics
-roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/K67/K67_ebf.shp" # K67
+# roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/K67/K67_ebf.shp" # K67
+roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/RJA/RJA_ebf.shp" # RJA
 
 # Asia: Many soundings appear to be in the sea, so we need to also clip by coastlines
 # roi_seasia <- vect("POLYGON ((72 -23.5, 180 -23.5, 180 23.5, 72 23.5, 72 -23.5))", crs="+proj=longlat +datum=WGS84") # Asia & Pacific
