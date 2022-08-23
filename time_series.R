@@ -183,8 +183,6 @@ ts_2021_16day <- get_ts(files_2021_16day, "SIF_Corr_743", "16-day")
 ts_sif_16day  <- c(ts_2019_16day$Mean, ts_2020_16day$Mean, ts_2021_16day$Mean)
 ts_sem_16day  <- c(ts_2019_16day$SEM, ts_2020_16day$SEM, ts_2021_16day$SEM)
 
-
-
 #### 8-day plot ####
 cairo_pdf("G:/TROPOMI/esa/extracted/Ghana/figs/protected_reserves_sif_e_8day.pdf", width = 7.5, height = 4.25)
 
