@@ -79,6 +79,10 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
   df_var$Daily_Averaged_SIF <- ncvar_get(t_data, "Daily_Averaged_SIF")
 
   df_var$phase_angle      <- ncvar_get(t_data, "PA")
+  df_var$SZA              <- ncvar_get(t_data, "SZA")
+  df_var$SAz              <- ncvar_get(t_data, "SAz")
+  df_var$VZA              <- ncvar_get(t_data, "VZA")
+  df_var$VAz              <- ncvar_get(t_data, "VAz")
   df_var$cloud            <- ncvar_get(t_data, "Cloud_Fraction")
   df_var$qc               <- ncvar_get(t_data, "Quality_Flag")
   df_var$LC_MASK          <- ncvar_get(t_data, land_cover_var)
@@ -102,7 +106,7 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
   
   # If number of soundings > 0, then proceed
   if (nrow(crds(var_roi, df = TRUE)) == 0) {
-    print(paste0("File for this date is being skipped as it has 0 soundings for the region: ", t))
+    message(paste0("File for this date is being skipped as it has 0 soundings for the region: ", t))
     
   } else {
     # Build data frame for writing to nc file
@@ -150,6 +154,18 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     dlname        <- "phase angle"
     pa_def        <- ncvar_def("PA", "degrees", elemdim, fillvalue, dlname, prec = "float")
     
+    dlname        <- "solar zenith angle"
+    sza_def       <- ncvar_def("SZA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
+    dlname        <- "solar azimuth angle"
+    saz_def       <- ncvar_def("SAz", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
+    dlname        <- "viewing zenith angle"
+    vza_def       <- ncvar_def("VZA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
+    dlname        <- "viewing azimuth angle"
+    vaz_def       <- ncvar_def("VAz", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
     dlname        <- "0 - bad; 1 - good_passed_all_QC_checks; 2 - good_and_passed_cloud_check"
     qc_def        <- ncvar_def("Quality_Flag", "flag", elemdim, fillvalue, dlname, prec = "float")
     
@@ -171,11 +187,15 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     
     if (!is.null(land_cover_perc)) {
       ncout <- nc_create(out_f,
-                         list(time_def, lon_def, lat_def, sif740_def, sifd_def, pa_def, qc_def, cloud_def, lc_def, lc_perc_def), 
+                         list(time_def, lon_def, lat_def, sif740_def, sifd_def,
+                              pa_def, sza_def, saz_def, vza_def, vaz_def,
+                              qc_def, cloud_def, lc_def, lc_perc_def), 
                          force_v4 = TRUE)
     } else {
       ncout <- nc_create(out_f,
-                         list(time_def, lon_def, lat_def, sif740_def, sifd_def, pa_def, qc_def, cloud_def, lc_def), 
+                         list(time_def, lon_def, lat_def, sif740_def, sifd_def,
+                              pa_def, sza_def, saz_def, vza_def, vaz_def,
+                              qc_def, cloud_def, lc_def), 
                          force_v4 = TRUE)
     }
     
@@ -186,6 +206,10 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     ncvar_put(ncout, sif740_def, df$SIF_740)
     ncvar_put(ncout, sifd_def, df$Daily_Averaged_SIF)
     ncvar_put(ncout, pa_def, df$phase_angle)
+    ncvar_put(ncout, sza_def, df$SZA)
+    ncvar_put(ncout, saz_def, df$SAz)
+    ncvar_put(ncout, vza_def, df$VZA)
+    ncvar_put(ncout, vaz_def, df$VAz)
     ncvar_put(ncout, qc_def, df$qc)
     ncvar_put(ncout, cloud_def, df$cloud)
     ncvar_put(ncout, lc_def, df$LC_MASK)
@@ -211,7 +235,7 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     time_e   <- Sys.time()
     time_dif <- difftime(time_e, time_s)
     
-    print(paste0("Saved ", out_f, ". Time elapsed: ", time_dif))
+    message(paste0("Saved ", out_f, ". Time elapsed: ", time_dif))
   }
   
   tmp_remove(tmpdir)

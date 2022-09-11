@@ -81,6 +81,10 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
   df_var$Daily_SIF_771nm <- ncvar_get(t_data, "Daily_SIF_771nm")
 
   df_var$phase_angle      <- ncvar_get(t_data, "PA")
+  df_var$SZA              <- ncvar_get(t_data, "SZA")
+  df_var$SAz              <- ncvar_get(t_data, "SAz")
+  df_var$VZA              <- ncvar_get(t_data, "VZA")
+  df_var$VAz              <- ncvar_get(t_data, "VAz")
   df_var$cloud            <- ncvar_get(t_data, "Cloud/cloud_flag_abp")
   df_var$LC_MASK          <- ncvar_get(t_data, land_cover_var)
   
@@ -103,7 +107,7 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
   
   # If number of soundings > 0, then proceed
   if (nrow(crds(var_roi, df = TRUE)) == 0) {
-    print(paste0("File for this date is being skipped as it has 0 soundings for the region: ", t))
+    message(paste0("File for this date is being skipped as it has 0 soundings for the region: ", t))
     
   } else {
     # Build data frame for writing to nc file
@@ -154,8 +158,20 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     dlname        <- "phase angle"
     pa_def        <- ncvar_def("PA", "degrees", elemdim, fillvalue, dlname, prec = "float")
     
+    dlname        <- "solar zenith angle"
+    sza_def       <- ncvar_def("SZA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
+    dlname        <- "solar azimuth angle"
+    saz_def       <- ncvar_def("SAz", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
+    dlname        <- "viewing zenith angle"
+    vza_def       <- ncvar_def("VZA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
+    dlname        <- "viewing azimuth angle"
+    vaz_def       <- ncvar_def("VAz", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
     dlname        <- "Indicator of whether the sounding contained clouds: 0 - Classified clear, 1 - Classified cloudy, 2 - Not classified, all other values undefined; not used in SIF processing"
-    cloud_def    <- ncvar_def("cloud_flag_abp", "flag", elemdim, fillvalue, dlname, prec = "float")
+    cloud_def     <- ncvar_def("cloud_flag_abp", "flag", elemdim, fillvalue, dlname, prec = "float")
     
     dlname        <- basename(land_cover_var)
     lc_def        <- ncvar_def(basename(land_cover_var), "Majority IGBP Land Cover Class",
@@ -172,11 +188,15 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     
     if (!is.null(land_cover_perc)) {
       ncout <- nc_create(out_f,
-                         list(time_def, lon_def, lat_def, sif740_def, sif757_def, sif771_def, pa_def, cloud_def, lc_def, lc_perc_def), 
+                         list(time_def, lon_def, lat_def, sif740_def, sif757_def, sif771_def, 
+                              pa_def, sza_def, saz_def, vza_def, vaz_def,
+                              cloud_def, lc_def, lc_perc_def),  
                          force_v4 = TRUE)
     } else {
       ncout <- nc_create(out_f,
-                         list(time_def, lon_def, lat_def, sif740_def, sif757_def, sif771_def, pa_def, cloud_def, lc_def), 
+                         list(time_def, lon_def, lat_def, sif740_def, sif757_def, sif771_def,
+                              pa_def, sza_def, saz_def, vza_def, vaz_def,
+                              cloud_def, lc_def), 
                          force_v4 = TRUE)
     }
     
@@ -188,6 +208,10 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     ncvar_put(ncout, sif757_def, df$Daily_SIF_757nm)
     ncvar_put(ncout, sif771_def, df$Daily_SIF_771nm)
     ncvar_put(ncout, pa_def, df$phase_angle)
+    ncvar_put(ncout, sza_def, df$SZA)
+    ncvar_put(ncout, saz_def, df$SAz)
+    ncvar_put(ncout, vza_def, df$VZA)
+    ncvar_put(ncout, vaz_def, df$VAz)
     ncvar_put(ncout, cloud_def, df$cloud)
     ncvar_put(ncout, lc_def, df$LC_MASK)
     if (!is.null(land_cover_perc)) {
@@ -212,7 +236,7 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     time_e   <- Sys.time()
     time_dif <- difftime(time_e, time_s)
     
-    print(paste0("Saved ", out_f, ". Time elapsed: ", time_dif))
+    message(paste0("Saved ", out_f, ". Time elapsed: ", time_dif))
   }
   
   tmp_remove(tmpdir)
