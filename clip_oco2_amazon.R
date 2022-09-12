@@ -85,6 +85,9 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
   df_var$SAz              <- ncvar_get(t_data, "SAz")
   df_var$VZA              <- ncvar_get(t_data, "VZA")
   df_var$VAz              <- ncvar_get(t_data, "VAz")
+  
+  df_var$mode             <- ncvar_get(t_data, "Metadata/MeasurementMode")
+  df_var$qc               <- ncvar_get(t_data, "Quality_Flag")
   df_var$cloud            <- ncvar_get(t_data, "Cloud/cloud_flag_abp")
   df_var$LC_MASK          <- ncvar_get(t_data, land_cover_var)
   
@@ -170,6 +173,12 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     dlname        <- "viewing azimuth angle"
     vaz_def       <- ncvar_def("VAz", "degrees", elemdim, fillvalue, dlname, prec = "float")
     
+    dlname        <- "Instrument Measurement Mode, 0=Nadir, 1=Glint, 2=Target, 3=AreaMap, 4=Transition; users might consider to separate these for analysis"
+    mm_def        <- ncvar_def("Mode", "", elemdim, fillvalue, dlname, prec = "float")
+    
+    dlname        <- "SIF Lite Quality Flag: 0 = best (passes quality control + cloud fraction = 0.0); 1 = good (passes quality control); 2 = bad (failed quality control); -1 = not investigated"
+    qc_def        <- ncvar_def("qc", "", elemdim, fillvalue, dlname, prec = "float")
+    
     dlname        <- "Indicator of whether the sounding contained clouds: 0 - Classified clear, 1 - Classified cloudy, 2 - Not classified, all other values undefined; not used in SIF processing"
     cloud_def     <- ncvar_def("cloud_flag_abp", "flag", elemdim, fillvalue, dlname, prec = "float")
     
@@ -190,13 +199,13 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
       ncout <- nc_create(out_f,
                          list(time_def, lon_def, lat_def, sif740_def, sif757_def, sif771_def, 
                               pa_def, sza_def, saz_def, vza_def, vaz_def,
-                              cloud_def, lc_def, lc_perc_def), 
+                              mm_def, qc_def, cloud_def, lc_def, lc_perc_def), 
                          force_v4 = TRUE)
     } else {
       ncout <- nc_create(out_f,
                          list(time_def, lon_def, lat_def, sif740_def, sif757_def, sif771_def,
                               pa_def, sza_def, saz_def, vza_def, vaz_def,
-                              cloud_def, lc_def), 
+                              mm_def, qc_def, cloud_def, lc_def), 
                          force_v4 = TRUE)
     }
     
@@ -212,6 +221,8 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     ncvar_put(ncout, saz_def, df$SAz)
     ncvar_put(ncout, vza_def, df$VZA)
     ncvar_put(ncout, vaz_def, df$VAz)
+    ncvar_put(ncout, mm_def, df$mode)
+    ncvar_put(ncout, qc_def, df$qc)
     ncvar_put(ncout, cloud_def, df$cloud)
     ncvar_put(ncout, lc_def, df$LC_MASK)
     if (!is.null(land_cover_perc)) {

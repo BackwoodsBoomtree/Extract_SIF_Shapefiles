@@ -7,21 +7,21 @@ library(parallel)
 terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
 
 tmpdir          <- "/mnt/c/Rwork"
-out_dir         <- "/mnt/g/TROPOMI/esa/extracted/ebf/k34"
-out_name        <- "/K34_TROPOSIF_L2B_"
+out_dir         <- "/mnt/g/TROPOMI/esa/extracted/ebf/amazon"
+out_name        <- "/Amazon_TROPOSIF_L2B_"
 f_list          <- list.files("/mnt/g/TROPOMI/esa/original/v2.1/l2b", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
 land_cover      <- 2    # Set to NULL if not filtering land cover class
 land_cover_var  <- "PRODUCT/LC_MASK_2020" # Can be default or one we added
 land_cover_perc <- "PRODUCT/LC_PERC_2020"
 cloud_fraction  <- NULL # Set to NULL if not filtering cloud fraction
-notes           <- "This data has been filtered to include only EBF soundings in K34 EC Tower polygon with cloud fraction < 0.80"
+notes           <- "This data has been filtered to include only EBF soundings in the Amazon"
 
 ### Polygons for clipping
 # roi_file       <- vect("POLYGON ((-18 -11, 52 -11, 52 14, -18 14, -18 -11))", crs="+proj=longlat +datum=WGS84") # Africa
-# roi_file       <- "/mnt/f/BACKUPS/Russell/Projects/Amazon/Amazon_poly.shp" # Amazon
+roi_file       <- "/mnt/g/Amazon_shp/Amazon_poly.shp" # Amazon
 # roi_file       <- vect("POLYGON ((-180 -23.5, 180 -23.5, 180 23.5, -180 23.5, -180 -23.5))", crs="+proj=longlat +datum=WGS84") # Tropics
 # roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/K67/K67_ebf.shp" # K67
-roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/K34/K34_ebf.shp" # RJA
+# roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/K34/K34_ebf.shp" # RJA
 
 # Asia: Many soundings appear to be in the sea, so we need to also clip by coastlines
 # roi_seasia <- vect("POLYGON ((72 -23.5, 180 -23.5, 180 23.5, 72 23.5, 72 -23.5))", crs="+proj=longlat +datum=WGS84") # Asia & Pacific
@@ -86,6 +86,9 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
   df_var$SIF_NIRv_RAD     <- ncvar_get(t_data, "PRODUCT/SIF_NIRv_RAD")
   df_var$SIF_Rel          <- ncvar_get(t_data, "PRODUCT/SIF_Rel")
   df_var$phase_angle      <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/GEOLOCATIONS/phase_angle")
+  df_var$SZA              <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/GEOLOCATIONS/solar_zenith_angle")
+  df_var$VZA              <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/GEOLOCATIONS/viewing_zenith_angle")
+  df_var$RAA              <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/GEOLOCATIONS/relative_azimuth_angle")
   df_var$cloud_fraction   <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/INPUT_DATA/cloud_fraction_L2")
   df_var$LC_MASK          <- ncvar_get(t_data, land_cover_var)
   if (!is.null(land_cover_perc)) {
@@ -111,7 +114,7 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
   
   # If number of soundings > 0, then proceed
   if (nrow(crds(var_roi, df = TRUE)) == 0) {
-    print(paste0("File for this date is being skipped as it has 0 soundings for the region: ", t))
+    message(paste0("File for this date is being skipped as it has 0 soundings for the region: ", t))
 
   } else {
     # Build data frame for writing to nc file
@@ -186,6 +189,15 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
     dlname        <- "phase angle"
     pa_def        <- ncvar_def("phase_angle", "degrees", elemdim, fillvalue, dlname, prec = "float")
     
+    dlname        <- "solar zenith angle"
+    sza_def       <- ncvar_def("SZA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
+    dlname        <- "viewing zenith angle"
+    vza_def       <- ncvar_def("VZA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
+    dlname        <- "relative azimuth angle"
+    raa_def       <- ncvar_def("RAA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+    
     dlname        <- "cloud fraction"
     cf_def        <- ncvar_def("cloud_fraction_L2", "fraction", elemdim, fillvalue, dlname, prec = "float")
     
@@ -206,12 +218,16 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
     if (!is.null(land_cover_perc)) {
       ncout <- nc_create(out_f,
                          list(time_def, lon_def, lat_def, red_def, nir_def, ndvi_def, nirv_def, nirv_r_def, sif_def,
-                              sif_d_def, sif_e_def, rad_def, sif_nirvr_def, sif_rel_def, pa_def, cf_def, lc_def, lc_perc_def), 
+                              sif_d_def, sif_e_def, rad_def, sif_nirvr_def, sif_rel_def,
+                              pa_def, sza_def, vza_def, raa_def, 
+                              cf_def, lc_def, lc_perc_def), 
                          force_v4 = TRUE)
     } else {
       ncout <- nc_create(out_f,
                          list(time_def, lon_def, lat_def, red_def, nir_def, ndvi_def, nirv_def, nirv_r_def, sif_def,
-                              sif_d_def, sif_e_def, rad_def, sif_nirvr_def, sif_rel_def, pa_def, cf_def, lc_def), 
+                              sif_d_def, sif_e_def, rad_def, sif_nirvr_def, sif_rel_def, 
+                              pa_def, sza_def, vza_def, raa_def, 
+                              cf_def, lc_def), 
                          force_v4 = TRUE)
     }
     
@@ -231,6 +247,9 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
     ncvar_put(ncout, sif_nirvr_def, df$SIF_NIRv_RAD)
     ncvar_put(ncout, sif_rel_def, df$SIF_Rel)
     ncvar_put(ncout, pa_def, df$phase_angle)
+    ncvar_put(ncout, sza_def, df$SZA)
+    ncvar_put(ncout, vza_def, df$VZA)
+    ncvar_put(ncout, raa_def, df$RAA)
     ncvar_put(ncout, cf_def, df$cloud_fraction)
     ncvar_put(ncout, lc_def, df$LC_MASK)
     if (!is.null(land_cover_perc)) {
@@ -256,7 +275,7 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
     time_e   <- Sys.time()
     time_dif <- difftime(time_e, time_s)
     
-    print(paste0("Saved ", out_f, ". Time elapsed: ", time_dif))
+    message(paste0("Saved ", out_f, ". Time elapsed: ", time_dif))
   }
   
   tmp_remove(tmpdir)
