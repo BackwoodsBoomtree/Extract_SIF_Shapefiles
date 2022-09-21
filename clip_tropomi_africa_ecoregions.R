@@ -7,14 +7,14 @@ library(parallel)
 terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
 
 tmpdir          <- "/mnt/c/Rwork"
-out_dir         <- "/mnt/g/TROPOMI/esa/extracted/Africa/ecoregions"
-out_name        <- "/Africa_TROPOSIF_L2B_"
+out_dir         <- "/mnt/g/TROPOMI/esa/extracted/Africa/ecoregions/all"
+out_name        <- "/Africa_TROPOSIF_L2B_all_"
 f_list          <- list.files("/mnt/g/TROPOMI/esa/original/v2.1/l2b", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
-land_cover      <- 2    # Set to NULL if not filtering land cover class
+land_cover      <- NULL    # Set to NULL if not filtering land cover class
 land_cover_var  <- "PRODUCT/LC_MASK_2020" # Can be default or one we added
 land_cover_perc <- "PRODUCT/LC_PERC_2020"
 cloud_fraction  <- NULL # Set to NULL if not filtering cloud fraction
-notes           <- "This data has been filtered to include only EBF soundings in polygon with cloud fraction < 0.80"
+notes           <- "This data has been filtered to include only soundings in polygon with cloud fraction < 0.80"
 
 ### Polygons for clipping
 
@@ -71,17 +71,8 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
     # Get variables and transform to vect for clipping to ROI
     df_var                  <- data.frame(lon = ncvar_get(t_data, "PRODUCT/longitude"))
     df_var$lat              <- ncvar_get(t_data, "PRODUCT/latitude")
-    df_var$RED              <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/DETAILED_RESULTS/TOA_RFL")[1,]
-    df_var$NIR              <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/DETAILED_RESULTS/TOA_RFL")[7,]
-    df_var$NDVI             <- ncvar_get(t_data, "PRODUCT/NDVI")
-    df_var$NIRv             <- ncvar_get(t_data, "PRODUCT/NIRv")
-    df_var$NIRv_RAD         <- ncvar_get(t_data, "PRODUCT/NIRv_RAD")
-    df_var$SIF_743          <- ncvar_get(t_data, "PRODUCT/SIF_743")
     df_var$SIF_Corr_743     <- ncvar_get(t_data, "PRODUCT/SIF_Corr_743")
     df_var$SIF_ERROR_743    <- ncvar_get(t_data, "PRODUCT/SIF_ERROR_743")
-    df_var$Mean_TOA_RAD_743 <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/DETAILED_RESULTS/Mean_TOA_RAD_743")
-    df_var$SIF_NIRv_RAD     <- ncvar_get(t_data, "PRODUCT/SIF_NIRv_RAD")
-    df_var$SIF_Rel          <- ncvar_get(t_data, "PRODUCT/SIF_Rel")
     df_var$phase_angle      <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/GEOLOCATIONS/phase_angle")
     df_var$cloud_fraction   <- ncvar_get(t_data, "PRODUCT/SUPPORT_DATA/INPUT_DATA/cloud_fraction_L2")
     df_var$LC_MASK          <- ncvar_get(t_data, land_cover_var)
@@ -147,38 +138,11 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
       dlname        <- "latitude"
       lat_def       <- ncvar_def("lat", "degrees_north", elemdim, fillvalue, dlname, prec = "float")
       
-      dlname        <- "Red Reflectance"
-      red_def       <- ncvar_def("RED", "Reflectance", elemdim, fillvalue, dlname, prec = "float")
-      
-      dlname        <- "NIR Reflectance"
-      nir_def       <- ncvar_def("NIR", "Reflectance", elemdim, fillvalue, dlname, prec = "float")
-      
-      dlname        <- "Normalized Difference Vegetation Index"
-      ndvi_def      <- ncvar_def("NDVI", "Index", elemdim, fillvalue, dlname, prec = "float")
-      
-      dlname        <- "NIR Reflectance of Vegetation"
-      nirv_def      <- ncvar_def("NIRv", "Index", elemdim, fillvalue, dlname, prec = "float")
-      
-      dlname        <- "NIRv Radiance"
-      nirv_r_def    <- ncvar_def("NIRv_RAD", "Index", elemdim, fillvalue, dlname, prec = "float")
-      
-      dlname        <- "retrieved SIF@740 (743-758nm)"
-      sif_def       <- ncvar_def("SIF_743", "mW/m2/sr/nm", elemdim, fillvalue, dlname, prec = "float")
-      
       dlname        <- "daylength-corr SIF@740 (743-758nm)"
       sif_d_def     <- ncvar_def("SIF_Corr_743", "mW/m2/sr/nm", elemdim, fillvalue, dlname, prec = "float")
       
       dlname        <- "1-sigma SIF retrieval error (743-758nm)"
       sif_e_def     <- ncvar_def("SIF_ERROR_743", "mW/m2/sr/nm", elemdim, fillvalue, dlname, prec = "float")
-      
-      dlname        <- "Mean TOA Radiance in 743-758 nm fitting window"
-      rad_def       <- ncvar_def("Mean_TOA_RAD_743", "mW/m2/sr/nm", elemdim, fillvalue, dlname, prec = "float")
-      
-      dlname        <- "SIF_743 / NIRv_RAD"
-      sif_nirvr_def <- ncvar_def("SIF_NIRv_RAD", "mW/m2/sr/nm", elemdim, fillvalue, dlname, prec = "float")
-      
-      dlname        <- "SIF Relative (SIF_743 / Mean_TOA_RAD_743)"
-      sif_rel_def    <- ncvar_def("SIF_Rel", "mW/m2/sr/nm", elemdim, fillvalue, dlname, prec = "float")
       
       dlname        <- "phase angle"
       pa_def        <- ncvar_def("phase_angle", "degrees", elemdim, fillvalue, dlname, prec = "float")
@@ -199,16 +163,17 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
       
       # create netCDF file and put arrays
       out_f <- paste0(eco_dir, out_name, eco_region, "_", t, ".nc")
+      message(out_f)
       
       if (!is.null(land_cover_perc)) {
         ncout <- nc_create(out_f,
-                           list(time_def, lon_def, lat_def, red_def, nir_def, ndvi_def, nirv_def, nirv_r_def, sif_def,
-                                sif_d_def, sif_e_def, rad_def, sif_nirvr_def, sif_rel_def, pa_def, cf_def, lc_def, lc_perc_def), 
+                           list(time_def, lon_def, lat_def,
+                                sif_d_def, sif_e_def, pa_def, cf_def, lc_def, lc_perc_def), 
                            force_v4 = TRUE)
       } else {
         ncout <- nc_create(out_f,
-                           list(time_def, lon_def, lat_def, red_def, nir_def, ndvi_def, nirv_def, nirv_r_def, sif_def,
-                                sif_d_def, sif_e_def, rad_def, sif_nirvr_def, sif_rel_def, pa_def, cf_def, lc_def), 
+                           list(time_def, lon_def, lat_def,
+                                sif_d_def, sif_e_def, pa_def, cf_def, lc_def), 
                            force_v4 = TRUE)
       }
       
@@ -216,17 +181,8 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
       ncvar_put(ncout, time_def, rep(t_num, times = nrow(df)))
       ncvar_put(ncout, lon_def, df$x)
       ncvar_put(ncout, lat_def, df$y)
-      ncvar_put(ncout, red_def, df$RED)
-      ncvar_put(ncout, nir_def, df$NIR)
-      ncvar_put(ncout, ndvi_def, df$NDVI)
-      ncvar_put(ncout, nirv_def, df$NIRv)
-      ncvar_put(ncout, nirv_r_def, df$NIRv_RAD)
-      ncvar_put(ncout, sif_def, df$SIF_743)
       ncvar_put(ncout, sif_d_def, df$SIF_Corr_743)
       ncvar_put(ncout, sif_e_def, df$SIF_ERROR_743)
-      ncvar_put(ncout, rad_def, df$Mean_TOA_RAD_743)
-      ncvar_put(ncout, sif_nirvr_def, df$SIF_NIRv_RAD)
-      ncvar_put(ncout, sif_rel_def, df$SIF_Rel)
       ncvar_put(ncout, pa_def, df$phase_angle)
       ncvar_put(ncout, cf_def, df$cloud_fraction)
       ncvar_put(ncout, lc_def, df$LC_MASK)
@@ -259,6 +215,6 @@ clip_TROPOSIF <- function(input_file, roi_file, out_dir, out_name, land_cover,
   tmp_remove(tmpdir)
 }
 
-mclapply(f_list, clip_TROPOSIF, mc.cores = 10, mc.preschedule = FALSE, roi_file = roi_file,
+mclapply(f_list, clip_TROPOSIF, mc.cores = 5, mc.preschedule = FALSE, roi_file = roi_file,
          out_dir = out_dir, out_name = out_name, land_cover = land_cover, land_cover_var = land_cover_var,
          land_cover_perc = land_cover_perc, cloud_fraction = cloud_fraction,  tmpdir = tmpdir)
