@@ -9,7 +9,7 @@ terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
 tmpdir          <- "/mnt/c/Rwork"
 out_dir         <- "/mnt/g/OCO2/B11/extracted/amazon"
 out_name        <- "/Amazon_OCO2_L2B11_"
-f_list          <- list.files("/mnt/g/OCO2/B11/original", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
+f_list          <- list.files("/mnt/g/OCO2/B10/original", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
 land_cover      <- 2    # Set to NULL if not filtering land cover class
 land_cover_var  <- "Science/LC_MASK_2020" # Can be default or one we added
 land_cover_perc <- "Science/LC_PERC_2020"
@@ -253,12 +253,12 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
   tmp_remove(tmpdir)
 }
 
-### For debugging
-for (i in 1:length(f_list)) {
-  clip_nc(f_list[i], roi_file, out_dir, out_name, land_cover,
-          land_cover_var, land_cover_perc, cloud_fraction, tmpdir)
-}
+# ### For debugging
+# for (i in 1:length(f_list)) {
+#   clip_nc(f_list[i], roi_file, out_dir, out_name, land_cover,
+#           land_cover_var, land_cover_perc, cloud_fraction, tmpdir)
+# }
 
-# mclapply(f_list, clip_nc, mc.cores = 10, mc.preschedule = FALSE, roi_file = roi_file,
-#          out_dir = out_dir, out_name = out_name, land_cover = land_cover, land_cover_var = land_cover_var,
-#          land_cover_perc = land_cover_perc, cloud_fraction = cloud_fraction,  tmpdir = tmpdir)
+mclapply(f_list, clip_nc, mc.cores = 10, mc.preschedule = FALSE, roi_file = roi_file,
+         out_dir = out_dir, out_name = out_name, land_cover = land_cover, land_cover_var = land_cover_var,
+         land_cover_perc = land_cover_perc, cloud_fraction = cloud_fraction,  tmpdir = tmpdir)
