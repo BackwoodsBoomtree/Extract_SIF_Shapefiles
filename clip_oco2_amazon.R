@@ -9,7 +9,7 @@ terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
 tmpdir          <- "/mnt/c/Rwork"
 out_dir         <- "/mnt/g/OCO2/B11/extracted/amazon"
 out_name        <- "/Amazon_OCO2_L2B11_"
-f_list          <- list.files("/mnt/g/OCO2/B10/original", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
+f_list          <- list.files("/mnt/g/OCO2/B11/original", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
 land_cover      <- 2    # Set to NULL if not filtering land cover class
 land_cover_var  <- "Science/LC_MASK_2020" # Can be default or one we added
 land_cover_perc <- "Science/LC_PERC_2020"
