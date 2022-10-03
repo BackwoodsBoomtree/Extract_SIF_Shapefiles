@@ -18,7 +18,7 @@ notes           <- "This data has been filtered using Dan Wanyama's masks."
 
 ### Polygon for clipping
 
-roi_file         <- "/mnt/g/Africa/Forest_Masks/dissolved/CRF_Forest_Mask_2019_5km_Buffer.shp"
+roi_file         <- "/mnt/g/Africa/Forest_Masks/dissolved/LGF_Forest_Mask_2019_2.5km_Buffer.shp"
 
 # Prep vector
 roi   <- vect(roi_file)
