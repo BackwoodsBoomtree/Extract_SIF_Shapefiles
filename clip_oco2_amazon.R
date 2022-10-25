@@ -235,7 +235,7 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
     ncatt_put(ncout,"time","axis","T")
     
     # add global attributes
-    ncatt_put(ncout,0,"title", "OCO2_L2B10")
+    ncatt_put(ncout,0,"title", "OCO3_L2B10")
     ncatt_put(ncout,0,"institution", "University of Oklahoma")
     ncatt_put(ncout,0,"source", "Russell Doughty, PhD")
     ncatt_put(ncout,0,"date_created", date())
