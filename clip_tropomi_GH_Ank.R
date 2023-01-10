@@ -17,7 +17,7 @@ cloud_fraction  <- NULL # Set to NULL if not filtering cloud fraction
 notes           <- "This data has been filtered to include only soundings in the preserve for the GH-Ank tower site"
 
 ### Polygons for clipping
-roi_file       <- "/mnt/g/Africa/GH_Ank/GH-Ank_boundaries.shp" # Amazon
+roi_file       <- "/mnt/g/Africa/GH_Ank/GH-Ank_boundaries.shp"
 
 tmp_create <- function(tmpdir) {
   
