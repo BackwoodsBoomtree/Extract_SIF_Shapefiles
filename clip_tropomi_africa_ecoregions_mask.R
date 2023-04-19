@@ -1,8 +1,7 @@
+
 library(terra)
 library(ncdf4)
 library(parallel)
-
-#test
 
 ### roi_file can be a path to a shapefile or a manually created polygon using vect()
 

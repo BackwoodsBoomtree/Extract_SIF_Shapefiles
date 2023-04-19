@@ -1,4 +1,5 @@
 
+
 origin_list <- list.files("G:/TROPOMI/esa/original/v2.1/l2b/2021", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
 out_list    <- list.files("G:/TROPOMI/esa/extracted/Ghana/protected_reserves/2021", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
 
