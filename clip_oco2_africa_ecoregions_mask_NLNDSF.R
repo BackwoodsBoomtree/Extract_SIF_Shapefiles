@@ -1,0 +1,275 @@
+
+library(terra)
+library(ncdf4)
+library(parallel)
+
+### roi_file can be a path to a shapefile or a manually created polygon using vect()
+
+terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
+
+tmpdir          <- "/mnt/c/Rwork"
+out_dir         <- "/mnt/g/OCO2/B10/extracted/africa"
+out_name        <- "/Africa_OCO2_L2B10_"
+f_list          <- list.files("/mnt/g/OCO2/B10/original", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
+land_cover      <- NULL    # Set to NULL if not filtering land cover class
+land_cover_var  <- "Science/LC_MASK_2020" # Can be default or one we added
+land_cover_perc <- "Science/LC_PERC_2020"
+notes           <- "This data has been filtered to include only soundings in polygon with cloud fraction < 0.80"
+
+### Polygons for clipping
+# roi_file       <- vect("POLYGON ((-18 -11, 52 -11, 52 14, -18 14, -18 -11))", crs="+proj=longlat +datum=WGS84") # Africa
+# roi_file       <- "/mnt/g/Amazon_shp/Amazon_poly.shp" # Amazon
+# roi_file       <- vect("POLYGON ((-180 -23.5, 180 -23.5, 180 23.5, -180 23.5, -180 -23.5))", crs="+proj=longlat +datum=WGS84") # Tropics
+# roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/K67/K67_ebf.shp" # K67
+# roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/K34/K34_ebf.shp" # RJA
+
+# Asia: Many soundings appear to be in the sea, so we need to also clip by coastlines
+# roi_seasia <- vect("POLYGON ((72 -23.5, 180 -23.5, 180 23.5, 72 23.5, 72 -23.5))", crs="+proj=longlat +datum=WGS84") # Asia & Pacific
+# coastlines <- vect("/mnt/c/Russell/R_Scripts/TROPOMI_2/mapping/GSHHS_shp/c/GSHHS_c_L1.shp")
+# roi_file   <- intersect(roi_seasia, coastlines)
+
+# Africa project
+roi_file         <- "/mnt/g/Africa/Tropical_Africa_Ecoregions/ecoregions/NLNDSF.shp"
+forest_mask      <- vect("/mnt/g/Africa/Forest_Masks/dissolved/Africa_merged_2019_2.5km_Buffer.shp")
+
+tmp_create <- function(tmpdir) {
+  
+  p_tmp_dir <- paste0(tmpdir, "/", as.character(Sys.getpid())) # Process ID
+  
+  if (!dir.exists(p_tmp_dir)) {
+    dir.create(p_tmp_dir, recursive = TRUE)
+  }
+  
+  terraOptions(tempdir = p_tmp_dir)
+}
+tmp_remove <- function(tmpdir) {
+  
+  p_tmp_dir <- paste0(tmpdir, "/", as.character(Sys.getpid())) # Process ID
+  unlink(p_tmp_dir, recursive = TRUE)
+}
+
+clip_nc <- function(input_file, roi_file, forest_mask, out_dir, out_name, land_cover,
+                          land_cover_var, land_cover_perc, cloud_fraction, tmpdir) {
+  
+  tmp_create(tmpdir)
+  
+  if (!dir.exists(out_dir)){
+    dir.create(out_dir, recursive = TRUE)
+  }
+  
+  # Get ecoregions
+  roi_all   <- vect(roi_file)
+  eco_names <- unique(roi_all$ECO_NAME)
+  
+  t_data <- nc_open(input_file)
+  
+  # Get spatial and time
+  coords           <- cbind(ncvar_get(t_data, "Longitude"), ncvar_get(t_data, "Latitude"))
+  colnames(coords) <- c("lon", "lat")
+  t                <- basename(input_file)
+  t                <- substr(t, 12, 17)
+  t                <- paste0("20", t)
+  t                <- gsub("(\\d{4})(\\d{2})(\\d{2})$","\\1-\\2-\\3",t) # add dashes
+  
+  # Get variables and transform to vect for clipping to ROI
+  df_var                 <- data.frame(lon = ncvar_get(t_data, "Longitude"))
+  df_var$lat             <- ncvar_get(t_data, "Latitude")
+  
+  df_var$Daily_SIF_740nm <- ncvar_get(t_data, "Daily_SIF_740nm")
+  df_var$Daily_SIF_757nm <- ncvar_get(t_data, "Daily_SIF_757nm")
+  df_var$Daily_SIF_771nm <- ncvar_get(t_data, "Daily_SIF_771nm")
+
+  df_var$phase_angle      <- ncvar_get(t_data, "PA")
+  df_var$SZA              <- ncvar_get(t_data, "SZA")
+  df_var$SAz              <- ncvar_get(t_data, "SAz")
+  df_var$VZA              <- ncvar_get(t_data, "VZA")
+  df_var$VAz              <- ncvar_get(t_data, "VAz")
+  
+  df_var$mode             <- ncvar_get(t_data, "Metadata/MeasurementMode")
+  df_var$qc               <- ncvar_get(t_data, "Quality_Flag")
+  df_var$cloud            <- ncvar_get(t_data, "Cloud/cloud_flag_abp")
+  df_var$LC_MASK          <- ncvar_get(t_data, land_cover_var)
+  
+  if (!is.null(land_cover_perc)) {
+    df_var$LC_PERC <- ncvar_get(t_data, land_cover_perc)
+  }
+  nc_close(t_data)
+  
+  if (!is.null(land_cover)) {
+    df_var <- df_var[df_var$LC_MASK == land_cover, ]
+  }
+  
+  # Put coords in their own
+  coords <- cbind(df_var$lon, df_var$lat)
+  df_var <- subset(df_var, select = -c(lon,lat))
+  
+  # Convert to vector
+  t_vec      <- vect(coords, atts = df_var, crs = "+proj=longlat +datum=WGS84")
+  
+  for (e in 1:length(eco_names)) {
+    
+    time_s <- Sys.time()
+    
+    # Create dirs
+    eco_region <- gsub(" ", "_", eco_names[e])
+    eco_dir    <- paste0(out_dir, "/", eco_region)
+    if (!dir.exists(eco_dir)){
+      dir.create(eco_dir, recursive = TRUE)
+    }
+    
+    roi <- vect(roi_file, query = paste0("SELECT * FROM NLNDSF WHERE ECO_NAME = ", "'", eco_names[e], "'"))
+    roi <- aggregate(roi)
+    roi <- crop(forest_mask, roi)
+    
+    var_roi  <- intersect(t_vec, roi)
+    
+    # If number of soundings > 0, then proceed
+    if (nrow(crds(var_roi, df = TRUE)) == 0) {
+      
+      tmp_remove(tmpdir)
+      
+      return(message(paste0("File for this date is being skipped as it has 0 soundings for the region: ", t, "\n")))
+      
+    } else {
+      # Build data frame for writing to nc file
+      df <- crds(var_roi, df = TRUE)
+      
+      for (i in 1:length(names(var_roi))) {
+        df <- cbind(df, var_roi[[i]])
+      }
+      
+      #### Create NC file ####
+      ### Note: When creating point files, use number of points as a dim
+      ### rather than lon and lat, and make lon and lat variables.
+      ###
+      
+      # Create dimensions nc file
+      elemdim <- ncdim_def("n_elem", "", seq(1, nrow(df)))
+      
+      t_num   <- as.numeric(julian(as.Date(t), origin = as.Date("1970-01-01")))
+      # timedim <- ncdim_def("time", "days since 1970-01-01", t_num)
+      # londim  <- ncdim_def("lon", "degrees_east", as.double(df$x)) 
+      # latdim  <- ncdim_def("lat", "degrees_north", as.double(df$y))
+      
+      # define variables
+      fillvalue     <- -9999
+      dlname        <- "time"
+      time_def      <- ncvar_def("time", "days since 1970-01-01", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "Longitude"
+      lon_def       <- ncvar_def("lon", "degrees_east", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "Latitude"
+      lat_def       <- ncvar_def("lat", "degrees_north", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "Daily_SIF_740nm"
+      sif740_def    <- ncvar_def("Daily_SIF_740nm", "mW/m2/sr/nm", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "Daily_SIF_757nm"
+      sif757_def    <- ncvar_def("Daily_SIF_757nm", "mW/m2/sr/nm", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "Daily_SIF_771nm"
+      sif771_def    <- ncvar_def("Daily_SIF_771nm", "mW/m2/sr/nm", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "phase angle"
+      pa_def        <- ncvar_def("PA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "solar zenith angle"
+      sza_def       <- ncvar_def("SZA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "solar azimuth angle"
+      saz_def       <- ncvar_def("SAz", "degrees", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "viewing zenith angle"
+      vza_def       <- ncvar_def("VZA", "degrees", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "viewing azimuth angle"
+      vaz_def       <- ncvar_def("VAz", "degrees", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "Instrument Measurement Mode, 0=Nadir, 1=Glint, 2=Target, 3=AreaMap, 4=Transition; users might consider to separate these for analysis"
+      mm_def        <- ncvar_def("Mode", "", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "SIF Lite Quality Flag: 0 = best (passes quality control + cloud fraction = 0.0); 1 = good (passes quality control); 2 = bad (failed quality control); -1 = not investigated"
+      qc_def        <- ncvar_def("qc", "", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- "Indicator of whether the sounding contained clouds: 0 - Classified clear, 1 - Classified cloudy, 2 - Not classified, all other values undefined; not used in SIF processing"
+      cloud_def     <- ncvar_def("cloud_flag_abp", "flag", elemdim, fillvalue, dlname, prec = "float")
+      
+      dlname        <- basename(land_cover_var)
+      lc_def        <- ncvar_def(basename(land_cover_var), "Majority IGBP Land Cover Class",
+                                 elemdim, fillvalue, dlname, prec = "float")
+      
+      if (!is.null(land_cover_perc)) {
+        dlname        <- basename(land_cover_perc)
+        lc_perc_def   <- ncvar_def(basename(land_cover_perc), "% of Majority IGBP Land Cover Class",
+                                   elemdim, fillvalue, dlname, prec = "float")
+      }
+      
+      # create netCDF file and put arrays
+      out_f <- paste0(eco_dir, out_name, eco_region, "_", t, ".nc")
+      
+      if (!is.null(land_cover_perc)) {
+        ncout <- nc_create(out_f,
+                           list(time_def, lon_def, lat_def, sif740_def, sif757_def, sif771_def, 
+                                pa_def, sza_def, saz_def, vza_def, vaz_def,
+                                mm_def, qc_def, cloud_def, lc_def, lc_perc_def),  
+                           force_v4 = TRUE)
+      } else {
+        ncout <- nc_create(out_f,
+                           list(time_def, lon_def, lat_def, sif740_def, sif757_def, sif771_def,
+                                pa_def, sza_def, saz_def, vza_def, vaz_def,
+                                mm_def, qc_def, cloud_def, lc_def), 
+                           force_v4 = TRUE)
+      }
+      
+      # put variables
+      ncvar_put(ncout, time_def, rep(t_num, times = nrow(df)))
+      ncvar_put(ncout, lon_def, df$x)
+      ncvar_put(ncout, lat_def, df$y)
+      ncvar_put(ncout, sif740_def, df$Daily_SIF_740nm)
+      ncvar_put(ncout, sif757_def, df$Daily_SIF_757nm)
+      ncvar_put(ncout, sif771_def, df$Daily_SIF_771nm)
+      ncvar_put(ncout, pa_def, df$phase_angle)
+      ncvar_put(ncout, sza_def, df$SZA)
+      ncvar_put(ncout, saz_def, df$SAz)
+      ncvar_put(ncout, vza_def, df$VZA)
+      ncvar_put(ncout, vaz_def, df$VAz)
+      ncvar_put(ncout, mm_def, df$mode)
+      ncvar_put(ncout, qc_def, df$qc)
+      ncvar_put(ncout, cloud_def, df$cloud)
+      ncvar_put(ncout, lc_def, df$LC_MASK)
+      if (!is.null(land_cover_perc)) {
+        ncvar_put(ncout, lc_perc_def, df$LC_PERC)
+      }
+      
+      # put additional attributes into dimension and data variables
+      ncatt_put(ncout,"lon","axis","X")
+      ncatt_put(ncout,"lat","axis","Y")
+      ncatt_put(ncout,"time","axis","T")
+      
+      # add global attributes
+      ncatt_put(ncout,0,"title", "OCO3_L2B10")
+      ncatt_put(ncout,0,"institution", "University of Oklahoma")
+      ncatt_put(ncout,0,"source", "Russell Doughty, PhD")
+      ncatt_put(ncout,0,"date_created", date())
+      ncatt_put(ncout,0,"notes", notes)
+      
+      # Close input file
+      nc_close(ncout)
+      
+      time_e   <- Sys.time()
+      time_dif <- difftime(time_e, time_s, units = "secs")
+      
+      tmp_remove(tmpdir)
+      
+      message(paste0("Saved ", out_f))
+      
+      return(message(paste0("Time elapsed: ", time_dif, " secs\n")))
+    }
+  }
+}
+
+
+mclapply(f_list, clip_nc, mc.cores = 1, mc.preschedule = FALSE, roi_file = roi_file, forest_mask = forest_mask,
+         out_dir = out_dir, out_name = out_name, land_cover = land_cover, land_cover_var = land_cover_var,
+         land_cover_perc = land_cover_perc, cloud_fraction = cloud_fraction,  tmpdir = tmpdir)
