@@ -10,23 +10,8 @@ terraOptions(memfrac = 0.8) # Fraction of memory to allow terra
 tmpdir          <- "/mnt/c/Rwork"
 out_dir         <- "/mnt/g/GOME2/extracted/africa"
 out_name        <- "/Africa_NSIFv2.6.2.GOME-2A_"
-f_list          <- list.files("/mnt/g/GOME2", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
-land_cover      <- NULL    # Set to NULL if not filtering land cover class
-land_cover_var  <- "LC_MASK_2020" # Can be default or one we added
-land_cover_perc <- "LC_PERC_2020"
-notes           <- "This data has been filtered to include only soundings that fall within EBF"
-
-### Polygons for clipping
-# roi_file       <- vect("POLYGON ((-18 -11, 52 -11, 52 14, -18 14, -18 -11))", crs="+proj=longlat +datum=WGS84") # Africa
-# roi_file       <- "/mnt/g/Amazon_shp/Amazon_poly.shp" # Amazon
-# roi_file       <- vect("POLYGON ((-180 -23.5, 180 -23.5, 180 23.5, -180 23.5, -180 -23.5))", crs="+proj=longlat +datum=WGS84") # Tropics
-# roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/K67/K67_ebf.shp" # K67
-# roi_file       <- "/mnt/g/SIF_comps/figs/EC_Sites/K34/K34_ebf.shp" # RJA
-
-# Asia: Many soundings appear to be in the sea, so we need to also clip by coastlines
-# roi_seasia <- vect("POLYGON ((72 -23.5, 180 -23.5, 180 23.5, 72 23.5, 72 -23.5))", crs="+proj=longlat +datum=WGS84") # Asia & Pacific
-# coastlines <- vect("/mnt/c/Russell/R_Scripts/TROPOMI_2/mapping/GSHHS_shp/c/GSHHS_c_L1.shp")
-# roi_file   <- intersect(roi_seasia, coastlines)
+f_list          <- list.files("/mnt/g/GOME2/original", pattern = "*.nc", full.names = TRUE, recursive = TRUE)
+notes           <- ""
 
 # Africa project
 roi_file         <- "/mnt/g/Africa/Tropical_Africa_Ecoregions/Tropical_Africa_Ecoregions1.shp"
@@ -48,8 +33,7 @@ tmp_remove <- function(tmpdir) {
   unlink(p_tmp_dir, recursive = TRUE)
 }
 
-clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
-                          land_cover_var, land_cover_perc, cloud_fraction, tmpdir) {
+clip_nc <- function(input_file, roi_file, forest_mask, out_dir, out_name, cloud_fraction, tmpdir) {
   
   tmp_create(tmpdir)
   
@@ -86,16 +70,8 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
   df_var$VAz              <- ncvar_get(t_data, "VAz")
   df_var$cloud            <- ncvar_get(t_data, "Cloud_Fraction")
   df_var$qc               <- ncvar_get(t_data, "Quality_Flag")
-  df_var$LC_MASK          <- ncvar_get(t_data, land_cover_var)
   
-  if (!is.null(land_cover_perc)) {
-    df_var$LC_PERC <- ncvar_get(t_data, land_cover_perc)
-  }
   nc_close(t_data)
-  
-  if (!is.null(land_cover)) {
-    df_var <- df_var[df_var$LC_MASK == land_cover, ]
-  }
   
   # Put coords in their own
   coords <- cbind(df_var$lon, df_var$lat)
@@ -184,33 +160,14 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
       dlname        <- "Effective_cloud_fraction_MLER_model"
       cloud_def     <- ncvar_def("Cloud_Fraction", "fraction", elemdim, fillvalue, dlname, prec = "float")
       
-      dlname        <- basename(land_cover_var)
-      lc_def        <- ncvar_def(basename(land_cover_var), "Majority IGBP Land Cover Class",
-                                 elemdim, fillvalue, dlname, prec = "float")
-      
-      if (!is.null(land_cover_perc)) {
-        dlname        <- basename(land_cover_perc)
-        lc_perc_def   <- ncvar_def(basename(land_cover_perc), "% of Majority IGBP Land Cover Class",
-                                   elemdim, fillvalue, dlname, prec = "float")
-      }
-      
       # create netCDF file and put arrays
       out_f <- paste0(eco_dir, out_name, eco_region, "_", t, ".nc")
-      message(out_f)
       
-      if (!is.null(land_cover_perc)) {
-        ncout <- nc_create(out_f,
-                           list(time_def, lon_def, lat_def, sif740_def, sifd_def,
-                                pa_def, sza_def, saz_def, vza_def, vaz_def,
-                                qc_def, cloud_def, lc_def, lc_perc_def), 
-                           force_v4 = TRUE)
-      } else {
-        ncout <- nc_create(out_f,
-                           list(time_def, lon_def, lat_def, sif740_def, sifd_def,
-                                pa_def, sza_def, saz_def, vza_def, vaz_def,
-                                qc_def, cloud_def, lc_def), 
-                           force_v4 = TRUE)
-      }
+      ncout <- nc_create(out_f,
+                         list(time_def, lon_def, lat_def, sif740_def, sifd_def,
+                              pa_def, sza_def, saz_def, vza_def, vaz_def,
+                              qc_def, cloud_def), 
+                         force_v4 = TRUE)
       
       # put variables
       ncvar_put(ncout, time_def, rep(t_num, times = nrow(df)))
@@ -225,10 +182,6 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
       ncvar_put(ncout, vaz_def, df$VAz)
       ncvar_put(ncout, qc_def, df$qc)
       ncvar_put(ncout, cloud_def, df$cloud)
-      ncvar_put(ncout, lc_def, df$LC_MASK)
-      if (!is.null(land_cover_perc)) {
-        ncvar_put(ncout, lc_perc_def, df$LC_PERC)
-      }
       
       # put additional attributes into dimension and data variables
       ncatt_put(ncout,"lon","axis","X")
@@ -255,5 +208,4 @@ clip_nc <- function(input_file, roi_file, out_dir, out_name, land_cover,
 }
 
 mclapply(f_list, clip_nc, mc.cores = 10, mc.preschedule = FALSE, roi_file = roi_file,
-         out_dir = out_dir, out_name = out_name, land_cover = land_cover, land_cover_var = land_cover_var,
-         land_cover_perc = land_cover_perc, cloud_fraction = cloud_fraction,  tmpdir = tmpdir)
+         forest_mask = forest_mask, out_dir = out_dir, out_name = out_name, tmpdir = tmpdir)
